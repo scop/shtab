@@ -20,6 +20,7 @@ from itertools import starmap
 from string import Template
 from typing import Any, Dict, List
 from typing import Optional as Opt
+from typing import Callable, Protocol
 from typing import Union
 
 # version detector. Precedence: installed dist, git, 'UNKNOWN'
@@ -35,8 +36,12 @@ except ImportError:
 __all__ = ["complete", "add_argument_to", "SUPPORTED_SHELLS", "FILE", "DIRECTORY", "DIR"]
 log = logging.getLogger(__name__)
 
+class Completer(Protocol):
+    def __call__(self, ArgumentParser, /, root_prefix: Opt[str], preamble: str, choice_functions: Opt[Any] = None) -> str:
+        ...
+
 SUPPORTED_SHELLS: List[str] = []
-_SUPPORTED_COMPLETERS = {}
+_SUPPORTED_COMPLETERS: Dict[str, Completer] = {}
 CHOICE_FUNCTIONS: Dict[str, Dict[str, str]] = {
     "file": {"bash": "_shtab_compgen_files", "zsh": "_files", "tcsh": "f"},
     "directory": {"bash": "_shtab_compgen_dirs", "zsh": "_files -/", "tcsh": "d"}}
@@ -59,8 +64,8 @@ OPTION_END = _HelpAction, _VersionAction, _ShtabPrintCompletionAction
 OPTION_MULTI = _AppendAction, _AppendConstAction, _CountAction
 
 
-def mark_completer(shell):
-    def wrapper(func):
+def mark_completer(shell: str) -> Callable[[Completer], Completer]:
+    def wrapper(func: Completer) -> Completer:
         if shell not in SUPPORTED_SHELLS:
             SUPPORTED_SHELLS.append(shell)
         _SUPPORTED_COMPLETERS[shell] = func
@@ -69,7 +74,7 @@ def mark_completer(shell):
     return wrapper
 
 
-def get_completer(shell: str):
+def get_completer(shell: str) -> Completer:
     try:
         return _SUPPORTED_COMPLETERS[shell]
     except KeyError:
